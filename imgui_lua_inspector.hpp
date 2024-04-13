@@ -2,6 +2,7 @@
 #ifndef NEKO_LUA_INSPECTOR_HPP
 #define NEKO_LUA_INSPECTOR_HPP
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +41,41 @@ constexpr void copy(ForwardIt src_beg, ForwardIt src_end, OutputIt dest_beg, Out
     }
 }
 
+template <typename T>
+T neko_lua_to(lua_State *L, int index) {
+    if constexpr (std::same_as<T, int32_t> || std::same_as<T, uint32_t>) {
+        luaL_argcheck(L, lua_isnumber(L, index), index, "number expected");
+        return static_cast<T>(lua_tointeger(L, index));
+    } else if constexpr (std::same_as<T, float> || std::same_as<T, double>) {
+        luaL_argcheck(L, lua_isnumber(L, index), index, "number expected");
+        return static_cast<T>(lua_tonumber(L, index));
+    } else if constexpr (std::same_as<T, const char*>) {
+        luaL_argcheck(L, lua_isstring(L, index), index, "string expected");
+        return lua_tostring(L, index);
+    } else if constexpr (std::same_as<T, bool>) {
+        luaL_argcheck(L, lua_isboolean(L, index), index, "boolean expected");
+        return lua_toboolean(L, index) != 0;
+    } else if constexpr (std::is_pointer_v<T>) {
+        return reinterpret_cast<T>(lua_topointer(L, index));
+    } else {
+        static_assert(std::is_same_v<T, void>, "Unsupported type for neko_lua_to");
+    }
+}
+
+template <typename Iterable>
+neko_inline bool neko_lua_equal(lua_State *state, const Iterable &indices) {
+    auto it = indices.begin();
+    auto end = indices.end();
+    if (it == end) return true;
+    int cmp_index = *it++;
+    while (it != end) {
+        int index = *it++;
+        if (!neko_lua_equal(state, cmp_index, index)) return false;
+        cmp_index = index;
+    }
+    return true;
+}
+
 inline bool incomplete_chunk_error(const char* err, std::size_t len) { return err && (std::strlen(err) >= 5u) && (0 == std::strcmp(err + len - 5u, "<eof>")); }
 
 struct luainspector_hints {
@@ -61,7 +97,7 @@ struct command_line_input_callback_UserData {
 };
 
 struct inspect_table_config {
-    const_str search_str = 0;
+    const char* search_str = 0;
     bool is_non_function = false;
 };
 
