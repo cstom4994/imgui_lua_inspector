@@ -1,0 +1,9 @@
+
+vsxmake2022/
+.vscode/
+.xmake/
+build/
+
+.DS_Store
+
+

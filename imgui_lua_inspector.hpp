@@ -3,16 +3,29 @@
 #define NEKO_LUA_INSPECTOR_HPP
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 // You should include your lua and imgui here
+#include <imgui.h>
+#include <imgui_internal.h>
 
-// #include "engine/neko_lua.h"
-// #include "sandbox/game_imgui.h"
+#include <lua.hpp>
 
 namespace neko {
+
+#define neko_assert assert
+#define neko_bool_str(V) (V ? "true" : "false")
+
+inline ImVec4 rgba_to_imvec(int r, int g, int b, int a = 255) {
+    float newr = r / 255.f;
+    float newg = g / 255.f;
+    float newb = b / 255.f;
+    float newa = a / 255.f;
+    return ImVec4(newr, newg, newb, newa);
+}
 
 template <typename ForwardIterator, typename SpaceDetector>
 constexpr ForwardIterator find_terminating_word(ForwardIterator begin, ForwardIterator end, SpaceDetector&& is_space_pred) {
@@ -42,7 +55,7 @@ constexpr void copy(ForwardIt src_beg, ForwardIt src_end, OutputIt dest_beg, Out
 }
 
 template <typename T>
-T neko_lua_to(lua_State *L, int index) {
+T neko_lua_to(lua_State* L, int index) {
     if constexpr (std::same_as<T, int32_t> || std::same_as<T, uint32_t>) {
         luaL_argcheck(L, lua_isnumber(L, index), index, "number expected");
         return static_cast<T>(lua_tointeger(L, index));
@@ -62,8 +75,16 @@ T neko_lua_to(lua_State *L, int index) {
     }
 }
 
+inline bool neko_lua_equal(lua_State* state, int index1, int index2) {
+#if LUA_VERSION_NUM <= 501
+    return lua_equal(state, index1, index2) == 1;
+#else
+    return lua_compare(state, index1, index2, LUA_OPEQ) == 1;
+#endif
+}
+
 template <typename Iterable>
-neko_inline bool neko_lua_equal(lua_State *state, const Iterable &indices) {
+inline bool neko_lua_equal(lua_State* state, const Iterable& indices) {
     auto it = indices.begin();
     auto end = indices.end();
     if (it == end) return true;
